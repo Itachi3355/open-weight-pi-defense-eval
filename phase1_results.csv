@@ -1,0 +1,5 @@
+defense,attack,suite,model,n,ASR,utility
+transformers_pi_detector,important_instructions,banking,Qwen2.5-7B-Instruct,144,0.0486,0.2500
+none,important_instructions,banking,Qwen2.5-7B-Instruct,144,0.1042,0.3403
+repeat_user_prompt,important_instructions,banking,Qwen2.5-7B-Instruct,144,0.1228,0.3333
+spotlighting_with_delimiting,important_instructions,banking,Qwen2.5-7B-Instruct,144,0.2361,0.4444
