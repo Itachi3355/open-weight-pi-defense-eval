@@ -65,32 +65,35 @@ AutoDojo-style black-box attacker: for each (user_task × injection_task), an at
 `suite.run_task_with_pipeline` → read the deterministic `security` outcome → feed failure
 back → iterate up to K rounds. Adaptive ASR = fraction of the 144 pairs cracked within K.
 
-Run against `transformers_pi_detector` (the only defense that reduced static ASR),
-full banking suite, K=4, temp 0 target / temp 0.9 attacker.
+Full banking suite (16×9 = 144 pairs), K=4, temp 0 target / temp 0.9 attacker, same
+Qwen2.5-7B as attacker. Core 2×2 (defense × evaluation mode):
 
-| metric | value |
-|---|---|
-| static ASR (Phase 1) | 4.86% |
-| **adaptive ASR (K=4, full 16×9)** | **8.33%** (12/144) |
+| defense | static ASR | adaptive ASR (K=4) |
+|---|---|---|
+| none | 10.42% | **15.97%** (23/144) |
+| transformers_pi_detector | 4.86% | **8.33%** (12/144) |
 
 **Reading it — honestly:**
-- The adaptive attacker **roughly doubles** the static ASR (4.86% → 8.33%). The classifier's
-  static number understates real risk, but this is a **modest** lift, not a collapse.
-- A 3×3 validation subset gave 22.2% — **misleadingly high**: it happened to contain the
-  vulnerable tasks. The full-suite 8.33% is the honest number. (Cautionary note on subsets.)
-- **Cracking is concentrated:** user_task_0 (4/9), user_task_12 (4/9, all first-round),
-  user_task_2 (2/9), user_task_13 & _15 (1 each); the other 11 user tasks never cracked.
-  Strong task-specification-precision effect — a few (likely action-open) tasks carry the risk.
+- **Adaptive raises ASR above static for both conditions** (none 10.4→16.0%, classifier
+  4.9→8.3%) — a ~1.5–1.7× lift. Static evaluation understates real risk. Core thesis holds.
+- **But the classifier is not broken.** It keeps ~half its protective ratio even adaptively
+  (adaptive 8.3/16.0 ≈ 0.52; static 4.9/10.4 ≈ 0.47). This is NOT the >90% total-collapse
+  reported by "The Attacker Moves Second" — attributable to a deliberately weak attacker
+  (see caveats). Honest framing: adaptive attack *erodes but does not erase* this classifier.
+- **Concentrated risk, blunted by the defense.** Cracks cluster on a few user tasks; the
+  classifier suppresses them on exactly those tasks: ut0 7→4, ut12 5→4, ut13 5→1, ut11 3→0
+  (none → classifier adaptive cracks). The other user tasks never crack under either.
+- A 3×3 validation subset gave 22.2% — **misleadingly high** (it hit the vulnerable tasks).
+  Full-suite numbers are the honest ones. Cautionary note on subsets.
 
-**Caveats (this is a LOWER BOUND on adaptive risk):**
-- **Weak attacker:** same 7B as the target, a simple prompt, only K=4 rounds. A stronger
-  attacker (better prompt, few-shot successful payloads, more rounds, a larger/separate
-  attacker model) would push ASR higher.
-- **No adaptive baseline yet:** we have not run the adaptive attacker against `DEFENSE=None`.
-  Without it we can't yet say whether 8.33% means "the classifier still helps adaptively"
-  or "these tasks are just hard to crack regardless." That comparison is the key next step.
-- Contamination fixed: the robust tool-parser (bare-`<function>` close) means these rollouts
-  actually execute; earlier numbers were suppressed by parse failures.
+**Caveats — the adaptive numbers are a LOWER BOUND:**
+- **Weak attacker:** same 7B as the target, simple prompt, only K=4 rounds. A stronger
+  attacker (better prompt, few-shot from winning payloads, more rounds, a larger/separate
+  attacker model) would push both numbers up and is the way to test whether the classifier's
+  residual protection survives — the central open question.
+- Contamination fixed: the robust tool-parser (Qwen's bare-`<function>` close) means these
+  rollouts actually execute; pre-fix numbers were suppressed by parse failures.
+- Not bit-deterministic (vLLM batching at temp 0) — final figures need bootstrap CI / repeats.
 
 ## Next
 
