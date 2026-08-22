@@ -69,39 +69,44 @@ Full banking suite (16×9 = 144 pairs), K=4, temp 0 target / temp 0.9 attacker, 
 Qwen2.5-7B as attacker. **Complete clean 2×2** — all four cells from the same
 de-contaminated pipeline (robust tool-parser active for both static and adaptive):
 
-| defense | clean static ASR | adaptive ASR (K=4) |
-|---|---|---|
-| none | 18.75% (27/144) | 15.97% (23/144) |
-| transformers_pi_detector | 13.89% (20/144) | 8.33% (12/144) |
+| defense | clean static ASR | adaptive K=4 (weak) | adaptive K=8 (strong+few-shot) |
+|---|---|---|---|
+| none | 18.75% (27/144) | 15.97% (23/144) | 15.97% (23/144) |
+| transformers_pi_detector | 13.89% (20/144) | 8.33% (12/144) | 11.11% (16/144) |
+
+Strong attacker = richer red-team system prompt + few-shot transfer of winning payloads
+across pairs + K=8 (vs K=4), same Qwen2.5-7B attacking a Qwen2.5-7B target.
 
 **Reading it — honestly (this REVISES an earlier premature conclusion):**
-- **The adaptive attacker does NOT beat the static attack.** For both conditions, adaptive
-  ASR is *below* static (none 18.75→16.0%, classifier 13.9→8.3%). Our attacker (same weak 7B,
-  simple prompt, K=4) generates worse payloads than the hand-crafted `important_instructions`
-  template. **There is no adaptive-beats-static result yet.**
-- An earlier version of this file reported "adaptive ~doubles static" — that was an artifact
-  of comparing clean-adaptive numbers against *contaminated* static numbers (run before the
-  tool-parser fix suppressed static ASR). With matched clean parsing the effect disappears.
-  Recorded here as a cautionary example of why contamination control matters.
-- **The classifier is a weak static defense** — cleanly it cuts ASR only 18.75→13.89%
-  (×0.74), not the ×0.47 the contaminated numbers implied. De-contamination made the defense
-  look *worse*, not better.
-- Concentrated risk: adaptive cracks cluster on a few user tasks (none: ut0=7, ut12=5, ut13=5,
-  ut2=3, ut11=3; others 0); the classifier blunts those same tasks (ut0 7→4, ut12 5→4,
-  ut13 5→1, ut11 3→0). Strong task-specification-precision signal.
-- A 3×3 validation subset gave 22.2% — misleadingly high (it hit the vulnerable tasks).
-  Full-suite numbers are the honest ones.
+- **A same-scale LLM attacker does NOT beat the static attack — even when strengthened.**
+  Adaptive ASR is below static for both defenses at K=4, and *strengthening the attacker*
+  (richer prompt + few-shot transfer + K=8) did not close the gap: on `none` it gave
+  **exactly zero** improvement (23/144 → 23/144); on the classifier a modest gain
+  (8.33→11.11%) that still sits under the 13.89% static bar.
+- **The bottleneck is attacker capability/scale, not effort.** Doubling the query budget,
+  adding a sophisticated red-team prompt, and transferring winning payloads across tasks
+  moved `none` not at all. The crackable set is essentially fixed by task + target model.
+- An earlier version reported "adaptive ~doubles static" — an artifact of comparing
+  clean-adaptive against *contaminated* static (pre-parser-fix). Retracted; kept as a
+  cautionary note on contamination control.
+- **The classifier is a weak static defense** once de-contaminated (18.75→13.89%, ×0.74),
+  not the ×0.47 the contaminated numbers implied.
+- Concentrated risk: adaptive cracks cluster on a few user tasks (none: ut0, ut12, ut13, ut2,
+  ut11; others 0) — strong task-specification-precision signal.
 
-**What this means for the paper:** the central claim (adaptive attacks bypass defenses that
-look robust statically) is **not yet demonstrated** — because the attacker is too weak to
-clear even the static bar. Demonstrating it REQUIRES a stronger attacker. That is now the
-critical next experiment, not an optional refinement.
+**What this means for the paper.** On an open **7B** agent with a **same-scale black-box LLM
+attacker**, adaptive attacks do **not** dominate static ones, and defenses do **not** collapse
+the way the literature ("The Attacker Moves Second", >90% bypass) reports. That literature
+used *stronger* attackers — white-box GCG, or large/purpose-built attacker models. So the
+honest, defensible contribution forming here is a **scoping result**: *adaptive dominance
+requires a capability edge over the target; at parity it does not materialize.* The decisive
+remaining experiment is a **scale-asymmetric attacker** (14B/32B, or white-box) — if that
+beats static, the edge hypothesis is confirmed; if not, the negative result is strong.
 
 **Caveats:**
-- Attacker strength is the binding constraint: few-shot the winning payloads, raise K, better
-  system prompt, or a larger/separate attacker model.
-- Not bit-deterministic (vLLM batching at temp 0) — figures need bootstrap CI / repeats
-  (note the run-to-run drift already seen, e.g. none-adaptive pairs).
+- Attacker scale is the binding variable to test next (a larger/separate attacker model, or
+  white-box GCG on the smallest target).
+- Not bit-deterministic (vLLM batching at temp 0) — figures need bootstrap CI / repeats.
 - Static spotlighting/repeat_user_prompt still need clean (post-parser-fix) reruns; only
   none and transformers_pi_detector have clean static numbers so far.
 
