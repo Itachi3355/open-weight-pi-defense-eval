@@ -38,10 +38,27 @@ git clone https://github.com/Itachi3355/open-weight-pi-defense-eval && cd open-w
 pip install -U vllm && pip install "agentdojo==0.1.30" openai && pip uninstall -y torchaudio
 
 tmux new -s sweep      # survives disconnects
+
+# smoke test first (2 min): 1 user x 2 injections, K=2
+python run_sweep.py --mode adaptive --defenses none --n-user 1 --n-inj 2 --K 2
+
+# clean static + weak-attacker adaptive baselines
 python run_sweep.py --mode static   --defenses none transformers_pi_detector --git-push
 python run_sweep.py --mode adaptive --defenses none transformers_pi_detector --K 4 --git-push
+
+# STRONGER attacker (the experiment that decides the thesis): richer prompt + few-shot
+# transfer of winning payloads + higher K. On a 40GB A100 you can serve a larger attacker
+# model separately and point --attacker-base-url/--attacker-model at it.
+python run_sweep.py --mode adaptive --defenses none transformers_pi_detector \
+  --attacker-strength strong --K 8 --git-push
 # Ctrl-b d to detach; `tmux attach -t sweep` to check in.
 ```
+
+**Decision gate:** if `--attacker-strength strong` pushes adaptive ASR **above** the clean
+static bar (>18.75% on none, >13.89% on the classifier), the adaptive-beats-static thesis
+holds — scale to the model matrix. If it stays below, that is itself the honest finding
+(these defenses hold better than the doom literature implies on an open 7B / black-box
+LLM attacker) — reframe accordingly. Run this ONE experiment before building breadth.
 
 `run_sweep.py` serves vLLM itself, applies the agentdojo↔vLLM compat shims in-process,
 checkpoints **every pair** to `results/*.jsonl` (so a crash just resumes), prints ASR per
