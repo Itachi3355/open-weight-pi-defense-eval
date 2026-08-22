@@ -241,7 +241,12 @@ def run(a):
         for defense in a.defenses:
             pipeline = build_pipeline(defense)
             key_attack = ATTACKS[a.attack](suite, pipeline)  # for correct injection placeholder KEYS
-            tag = f"{a.mode}_{defense}_{a.suite}_{a.attack}" + (f"_K{a.K}" if a.mode == "adaptive" else "")
+            tag = f"{a.mode}_{defense}_{a.suite}_{a.attack}"
+            if a.mode == "adaptive":
+                # include K, attacker strength, and attacker model so runs never collide on filename
+                tag += f"_K{a.K}_{a.attacker_strength}"
+                if att_model != served:
+                    tag += "_att-" + att_model.split("/")[-1].replace(".", "_")
             ckpt = os.path.join(a.outdir, f"{tag}.jsonl")
             done = load_done(ckpt)
             pairs = [(ut, it) for ut in user_tasks for it in injection_tasks]
