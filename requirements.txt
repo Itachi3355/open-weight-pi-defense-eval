@@ -1,0 +1,11 @@
+# Install on the GPU box (RunPod/Lambda/etc). vLLM brings its own torch.
+# Install vllm FIRST, then agentdojo (agentdojo is dep-tolerant); then remove torchaudio
+# (Colab/base images ship one built for a different CUDA than vLLM's torch -> import RuntimeError).
+#
+#   pip install -U vllm
+#   pip install "agentdojo==0.1.30" openai
+#   pip uninstall -y torchaudio
+#
+vllm
+agentdojo==0.1.30
+openai

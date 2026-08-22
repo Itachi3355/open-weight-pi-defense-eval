@@ -66,34 +66,44 @@ AutoDojo-style black-box attacker: for each (user_task × injection_task), an at
 back → iterate up to K rounds. Adaptive ASR = fraction of the 144 pairs cracked within K.
 
 Full banking suite (16×9 = 144 pairs), K=4, temp 0 target / temp 0.9 attacker, same
-Qwen2.5-7B as attacker. Core 2×2 (defense × evaluation mode):
+Qwen2.5-7B as attacker. **Complete clean 2×2** — all four cells from the same
+de-contaminated pipeline (robust tool-parser active for both static and adaptive):
 
-| defense | static ASR | adaptive ASR (K=4) |
+| defense | clean static ASR | adaptive ASR (K=4) |
 |---|---|---|
-| none | 10.42% | **15.97%** (23/144) |
-| transformers_pi_detector | 4.86% | **8.33%** (12/144) |
+| none | 18.75% (27/144) | 15.97% (23/144) |
+| transformers_pi_detector | 13.89% (20/144) | 8.33% (12/144) |
 
-**Reading it — honestly:**
-- **Adaptive raises ASR above static for both conditions** (none 10.4→16.0%, classifier
-  4.9→8.3%) — a ~1.5–1.7× lift. Static evaluation understates real risk. Core thesis holds.
-- **But the classifier is not broken.** It keeps ~half its protective ratio even adaptively
-  (adaptive 8.3/16.0 ≈ 0.52; static 4.9/10.4 ≈ 0.47). This is NOT the >90% total-collapse
-  reported by "The Attacker Moves Second" — attributable to a deliberately weak attacker
-  (see caveats). Honest framing: adaptive attack *erodes but does not erase* this classifier.
-- **Concentrated risk, blunted by the defense.** Cracks cluster on a few user tasks; the
-  classifier suppresses them on exactly those tasks: ut0 7→4, ut12 5→4, ut13 5→1, ut11 3→0
-  (none → classifier adaptive cracks). The other user tasks never crack under either.
-- A 3×3 validation subset gave 22.2% — **misleadingly high** (it hit the vulnerable tasks).
-  Full-suite numbers are the honest ones. Cautionary note on subsets.
+**Reading it — honestly (this REVISES an earlier premature conclusion):**
+- **The adaptive attacker does NOT beat the static attack.** For both conditions, adaptive
+  ASR is *below* static (none 18.75→16.0%, classifier 13.9→8.3%). Our attacker (same weak 7B,
+  simple prompt, K=4) generates worse payloads than the hand-crafted `important_instructions`
+  template. **There is no adaptive-beats-static result yet.**
+- An earlier version of this file reported "adaptive ~doubles static" — that was an artifact
+  of comparing clean-adaptive numbers against *contaminated* static numbers (run before the
+  tool-parser fix suppressed static ASR). With matched clean parsing the effect disappears.
+  Recorded here as a cautionary example of why contamination control matters.
+- **The classifier is a weak static defense** — cleanly it cuts ASR only 18.75→13.89%
+  (×0.74), not the ×0.47 the contaminated numbers implied. De-contamination made the defense
+  look *worse*, not better.
+- Concentrated risk: adaptive cracks cluster on a few user tasks (none: ut0=7, ut12=5, ut13=5,
+  ut2=3, ut11=3; others 0); the classifier blunts those same tasks (ut0 7→4, ut12 5→4,
+  ut13 5→1, ut11 3→0). Strong task-specification-precision signal.
+- A 3×3 validation subset gave 22.2% — misleadingly high (it hit the vulnerable tasks).
+  Full-suite numbers are the honest ones.
 
-**Caveats — the adaptive numbers are a LOWER BOUND:**
-- **Weak attacker:** same 7B as the target, simple prompt, only K=4 rounds. A stronger
-  attacker (better prompt, few-shot from winning payloads, more rounds, a larger/separate
-  attacker model) would push both numbers up and is the way to test whether the classifier's
-  residual protection survives — the central open question.
-- Contamination fixed: the robust tool-parser (Qwen's bare-`<function>` close) means these
-  rollouts actually execute; pre-fix numbers were suppressed by parse failures.
-- Not bit-deterministic (vLLM batching at temp 0) — final figures need bootstrap CI / repeats.
+**What this means for the paper:** the central claim (adaptive attacks bypass defenses that
+look robust statically) is **not yet demonstrated** — because the attacker is too weak to
+clear even the static bar. Demonstrating it REQUIRES a stronger attacker. That is now the
+critical next experiment, not an optional refinement.
+
+**Caveats:**
+- Attacker strength is the binding constraint: few-shot the winning payloads, raise K, better
+  system prompt, or a larger/separate attacker model.
+- Not bit-deterministic (vLLM batching at temp 0) — figures need bootstrap CI / repeats
+  (note the run-to-run drift already seen, e.g. none-adaptive pairs).
+- Static spotlighting/repeat_user_prompt still need clean (post-parser-fix) reruns; only
+  none and transformers_pi_detector have clean static numbers so far.
 
 ## Next
 
