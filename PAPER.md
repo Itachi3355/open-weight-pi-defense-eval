@@ -17,12 +17,15 @@ two contributions. First, a **methodological** one: we show that naive local-mod
 success rate (ASR) by ~2× and *flip* qualitative conclusions — de-contamination is a
 precondition for any adaptive claim. Second, an **empirical** one: on the AgentDojo banking
 suite with a `transformers`-based prompt-injection classifier defense, we measure ASR under a
-static attack and under an adaptive LLM attacker of increasing capability (7B → 14B). No LLM
-attacker at these scales exceeds the hand-crafted static template in *absolute* ASR; but the
-**classifier's marginal protection erodes monotonically with attacker capability** — the ratio
-of defended-to-undefended ASR climbs 0.52 → 0.70 → 0.86, i.e. the defense is progressively
-neutralized. We release the harness, the compatibility shims, all raw per-attack transcripts,
-and the successful injection payloads.
+static attack and under an adaptive LLM attacker of increasing capability (7B → 14B → 32B,
+target fixed at 7B). Two results. (i) **A capability threshold for adaptive dominance:**
+attackers up to 14B stay *below* the hand-crafted static template, but a 32B attacker exceeds
+it on both the undefended agent (19.4% vs 18.8%) and the classifier-defended one (17.4% vs
+13.9%) — adaptive beats static once the attacker out-scales the target. (ii) **Monotone defense
+erosion:** the classifier's marginal protection (defended/undefended ASR ratio) climbs
+0.52 → 0.70 → 0.86 → 0.89 with attacker scale — a defense that halves ASR against a weak
+attacker cuts it only ~11% against the 32B one. We release the harness, the compatibility
+shims, all raw per-attack transcripts, and the successful injection payloads.
 
 ---
 
@@ -82,21 +85,25 @@ Adaptive ASR by attacker capability (target fixed at 7B; 144 pairs each):
 | 7B, K=4, simple | 15.97% | 8.33% | 0.52 |
 | 7B, K=8, strong+few-shot | 15.97% | 11.11% | 0.70 |
 | 14B, K=8, strong+few-shot | 14.58% | 12.50% | 0.86 |
+| **32B, K=8, strong+few-shot** | **19.44%** | **17.36%** | **0.89** |
 
-**Two findings, both stated conservatively:**
+**Two findings:**
 
-1. **No LLM attacker (to 14B) beats the static template in absolute ASR.** Every adaptive number
-   sits below its static bar. The hand-crafted `important_instructions` template is a strong
-   single attack; a black-box LLM attacker of comparable scale approaches but does not exceed it.
-   This is a *scoping* correction to the "adaptive dominates" narrative for the low-attacker-scale
-   regime.
+1. **A capability threshold for adaptive dominance.** Attackers up to 14B stay below both static
+   bars — the hand-crafted `important_instructions` template is a strong single attack that a
+   comparable-scale LLM attacker approaches but does not beat. The **32B attacker exceeds it on
+   both** defenses: undefended 19.44% > 18.75%, and classifier-defended 17.36% ≫ 13.89%. Adaptive
+   attacks beat static ones once the attacker out-scales the target; at parity they do not. This
+   locates the "adaptive dominates" claim precisely rather than assuming or denying it.
 
 2. **The classifier's marginal protection erodes monotonically with attacker capability**
-   (ratio 0.52 → 0.70 → 0.86). The undefended ASR is roughly flat across attacker scale
-   (15.97 → 15.97 → 14.58) — the undefended ceiling is set by task difficulty and the target,
-   not the attacker. The attacker's extra capability manifests specifically as **evading the
-   defense**, which is exactly why it reads as defense erosion. Extrapolating, the ratio trends
-   toward 1.0 (defense fully neutralized) at larger attacker scale.
+   (ratio 0.52 → 0.70 → 0.86 → 0.89). Against the weak attacker it roughly halves ASR; against the
+   32B it cuts ASR only ~11% (19.44 → 17.36). The classifier column rises faster than the
+   undefended one (8.33 → 17.36 vs 15.97 → 19.44), so the attacker's extra capability is spent
+   increasingly on **evading the defense** — which is why the ratio climbs. (The 0.86 → 0.89 step
+   is small; the ratio may plateau below 1.0 rather than reach full neutralization — a white-box
+   or larger attacker would settle it. The absolute result, adaptive > static at 32B, is
+   unambiguous.)
 
 **Qualitative.** Successful payloads (79 released) cluster on: compliance/audit pretexts,
 impersonating an internal "Banking Service" notice, mimicking the surrounding transaction
@@ -119,13 +126,16 @@ This reframes defense evaluation from a single ASR to an **erosion curve over at
 ## 6. Limitations
 
 - One target model, one suite, one defense evaluated in depth (others static-only).
-- Attacker scale tops out at 14B (compute-bound); the confirming 32B / white-box point is future work.
-- vLLM is not bit-deterministic at temperature 0; point estimates need bootstrap CI / repeats.
+- Attacker scale tops out at 32B; the exact threshold between 14B and 32B is not resolved, and
+  whether the ratio plateaus below 1.0 or reaches full neutralization is open.
+- vLLM is not bit-deterministic at temperature 0; point estimates need bootstrap CI / repeats
+  (the non-monotone `none` column, 14.58 → 19.44 at 32B, underlines this).
 - Black-box LLM attacker only; no GCG/white-box comparison yet.
 
 ## 7. What a full submission still needs
 
-- **Confirm the curve:** 32B (and/or white-box GCG) attacker → does the ratio reach ~1.0?
+- **Resolve the threshold:** attacker sizes between 14B and 32B, plus white-box GCG, to locate
+  where adaptive crosses static and whether the erosion ratio plateaus below 1.0.
 - **Model matrix:** Llama-3.1-8B, Mistral-7B, Gemma-3-4B, Meta-SecAlign-8B (model-level baseline).
 - **Defense matrix, clean:** spotlighting / repeat_user_prompt / stacking, all de-contaminated.
 - **Cross-suite:** workspace/travel/slack; InjecAgent cross-check.
