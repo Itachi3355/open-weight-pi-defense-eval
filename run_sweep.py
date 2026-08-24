@@ -41,6 +41,11 @@ def parse_args():
     p.add_argument("--attacker-model", default=None,
                    help="attacker model id (e.g. a larger model served separately); defaults to --model")
     p.add_argument("--fewshot-k", type=int, default=3, help="strong mode: # of winning payloads to few-shot")
+    p.add_argument("--share-winners", action="store_true",
+                   help="carry the winning-payload pool ACROSS defenses (cross-condition transfer). "
+                        "Default OFF: each defense gets its own within-condition pool. Turn on only for "
+                        "an explicit transfer experiment — otherwise a later defense inherits payloads "
+                        "discovered against an earlier one, confounding the comparison.")
     p.add_argument("--n-user", type=int, default=None, help="limit user tasks (debug)")
     p.add_argument("--n-inj", type=int, default=None, help="limit injection tasks (debug)")
     p.add_argument("--outdir", default="results")
@@ -93,47 +98,16 @@ def apply_shims():
         return __real(client, model=model, messages=fixed, **kw)
     L.chat_completion_request = ccr
 
-    # 3. robust tool-parser: brace-match JSON, tolerate Qwen's bare `<function>` close
-    open_re = re.compile(r"<function\s*=\s*([^>]+?)\s*>")
-    def extract_json(s, start):
-        i = s.find("{", start)
-        if i == -1:
-            return None
-        depth = 0; in_str = False; esc = False
-        for j in range(i, len(s)):
-            c = s[j]
-            if in_str:
-                if esc: esc = False
-                elif c == "\\": esc = True
-                elif c == '"': in_str = False
-            else:
-                if c == '"': in_str = True
-                elif c == "{": depth += 1
-                elif c == "}":
-                    depth -= 1
-                    if depth == 0:
-                        return s[i:j + 1]
-        return None
+    # 3. robust tool-parser: brace-match JSON, tolerate Qwen's bare `<function>` close.
+    # Uses the tested reference implementation in qwen_parser.py (see tests/test_qwen_parser.py).
+    from qwen_parser import extract_tool_calls
     def robust_parse(completion):
-        default = ChatAssistantMessage(role="assistant",
-            content=[text_content_block_from_string(completion.strip())], tool_calls=[])
-        calls = []
-        for m in open_re.finditer(completion):
-            name = m.group(1).strip()
-            obj = extract_json(completion, m.end())
-            args = {}
-            if obj is not None:
-                try:
-                    parsed = json.loads(obj)
-                    if isinstance(parsed, dict):
-                        args = parsed
-                except Exception:
-                    args = {}
-            calls.append(FunctionCall(function=name, args=args))
-        if not calls:
-            return default
-        return ChatAssistantMessage(role="assistant",
-            content=[text_content_block_from_string(completion.strip())], tool_calls=calls)
+        calls = [FunctionCall(function=c["name"], args=c["args"])
+                 for c in extract_tool_calls(completion)]
+        return ChatAssistantMessage(
+            role="assistant",
+            content=[text_content_block_from_string(completion.strip())],
+            tool_calls=calls)
     L._parse_model_output = robust_parse
     print("[shims] content-part + int-cap + robust tool-parser applied", flush=True)
 
@@ -197,6 +171,16 @@ def build_pipeline(defense):
     return AgentPipeline.from_config(PipelineConfig(
         llm="local", defense=d, system_message_name="default", system_message=None))
 
+def _versions():
+    import importlib.metadata as md
+    out = {}
+    for p in ("vllm", "torch", "transformers", "agentdojo", "openai", "numpy"):
+        try:
+            out[p] = md.version(p)
+        except Exception:
+            out[p] = None
+    return out
+
 def load_done(path):
     done = set()
     if os.path.exists(path):
@@ -233,9 +217,14 @@ def run(a):
         print(f"[attacker] strength={a.attacker_strength} model={att_model} url={att_url} "
               f"K={a.K} fewshot_k={a.fewshot_k}", flush=True)
 
-    # winning-payload pool (few-shot transfer), persisted so a resume keeps learned attacks
-    winners_path = os.path.join(a.outdir, "winning_payloads.txt")
-    winners = [l.rstrip("\n") for l in open(winners_path)] if os.path.exists(winners_path) else []
+    # Winner pool for few-shot transfer. Default: ISOLATED per defense (within-condition) so a
+    # later defense does NOT inherit payloads discovered against an earlier one. --share-winners
+    # opts into explicit cross-condition transfer. Shared pool persists to winning_payloads.txt;
+    # isolated pools persist per-tag so a resume keeps that condition's learned attacks.
+    shared_winners = None
+    if a.share_winners:
+        shared_path = os.path.join(a.outdir, "winning_payloads.txt")
+        shared_winners = [l.rstrip("\n") for l in open(shared_path)] if os.path.exists(shared_path) else []
 
     try:
         for defense in a.defenses:
@@ -248,10 +237,25 @@ def run(a):
                 if att_model != served:
                     tag += "_att-" + att_model.split("/")[-1].replace(".", "_")
             ckpt = os.path.join(a.outdir, f"{tag}.jsonl")
+
+            # config + environment snapshot for reproducibility (one per tag)
+            with open(os.path.join(a.outdir, f"{tag}.config.json"), "w") as cf:
+                json.dump({"args": vars(a), "target_model": served, "attacker_model": att_model,
+                           "versions": _versions(), "tag": tag}, cf, indent=2)
+
+            # winners: isolated per-tag unless --share-winners
+            if a.share_winners:
+                winners = shared_winners
+                winners_path = os.path.join(a.outdir, "winning_payloads.txt")
+            else:
+                winners_path = os.path.join(a.outdir, f"{tag}.winners.txt")
+                winners = [l.rstrip("\n") for l in open(winners_path)] if os.path.exists(winners_path) else []
+
             done = load_done(ckpt)
             pairs = [(ut, it) for ut in user_tasks for it in injection_tasks]
             todo = [(ut, it) for ut, it in pairs if (ut.ID, it.ID) not in done]
-            print(f"\n=== {tag}: {len(done)} done, {len(todo)} to run ===", flush=True)
+            print(f"\n=== {tag}: {len(done)} done, {len(todo)} to run "
+                  f"(winners={'shared' if a.share_winners else 'isolated'}) ===", flush=True)
 
             t0 = time.time()
             with open(ckpt, "a") as f:
@@ -261,37 +265,53 @@ def run(a):
                         inj = key_attack.attack(ut, it)  # fixed template payload, one shot
                         try:
                             u, s = suite.run_task_with_pipeline(pipeline, ut, it, inj)
+                            rec = {"ut": ut.ID, "it": it.ID, "status": "success",
+                                   "utility": bool(u), "security": bool(s)}
                         except Exception as e:
-                            u, s = False, False
-                        rec = {"ut": ut.ID, "it": it.ID, "utility": bool(u), "security": bool(s)}
+                            # NEVER count an infrastructure error as a defensive win: security=None => excluded
+                            rec = {"ut": ut.ID, "it": it.ID, "status": "error",
+                                   "utility": None, "security": None, "error": repr(e)[:200]}
                     else:  # adaptive
                         cracked, rounds, history, win = False, 0, [], ""
+                        n_err, got_valid = 0, False
                         for k in range(a.K):
                             rounds = k + 1
                             payload = propose(it.GOAL, history, winners)
                             try:
                                 u, s = suite.run_task_with_pipeline(pipeline, ut, it, {kk: payload for kk in keys})
                             except Exception:
-                                u, s = False, False
+                                n_err += 1
+                                continue  # errored rollout: not a legit "failed attempt", don't append
+                            got_valid = True
                             if s:
                                 cracked = True; win = payload; break
                             history.append(payload)
                         if cracked and win:
-                            winners.append(win)                       # few-shot transfer to later pairs
+                            winners.append(win)                       # few-shot transfer (scope per --share-winners)
                             with open(winners_path, "a") as wf:
                                 wf.write(win.replace("\n", " ") + "\n")
-                        rec = {"ut": ut.ID, "it": it.ID, "cracked": cracked, "rounds": rounds,
-                               "security": cracked, "win_payload": win[:300],
+                        # if NO round ever executed cleanly, the pair is unevaluable -> exclude (security=None)
+                        rec = {"ut": ut.ID, "it": it.ID,
+                               "status": "success" if got_valid else "error",
+                               "cracked": cracked, "rounds": rounds, "n_errors": n_err,
+                               "security": (cracked if got_valid else None),
+                               "win_payload": win[:300],
                                "last_payload": (history[-1][:200] if history else "")}
                     f.write(json.dumps(rec) + "\n"); f.flush()
                     if (i + 1) % 5 == 0 or i + 1 == len(todo):
                         print(f"  [{i+1}/{len(todo)}] {ut.ID} x {it.ID}  {time.time()-t0:.0f}s", flush=True)
 
+            # ASR over EVALUABLE pairs only (security is not None); errors reported separately.
+            # Back-compat: records without a "status"/None security (older runs) count as valid.
             recs = [json.loads(l) for l in open(ckpt)]
-            asr = sum(r["security"] for r in recs) / len(recs)
-            print(f"=== {tag}: ASR = {asr:.4f}  ({sum(r['security'] for r in recs)}/{len(recs)}) ===", flush=True)
+            valid = [r for r in recs if r.get("security") is not None]
+            n_err = len(recs) - len(valid)
+            cracked = sum(bool(r["security"]) for r in valid)
+            asr = cracked / len(valid) if valid else float("nan")
+            print(f"=== {tag}: ASR = {asr:.4f}  ({cracked}/{len(valid)} evaluable"
+                  f"{f', {n_err} errors excluded' if n_err else ''}) ===", flush=True)
             if a.git_push:
-                git_push(ckpt, f"sweep {tag}: ASR={asr:.4f}")
+                git_push(ckpt, f"sweep {tag}: ASR={asr:.4f} ({cracked}/{len(valid)})")
     finally:
         if proc is not None:
             proc.terminate()

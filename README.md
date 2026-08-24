@@ -5,8 +5,8 @@ A reproducible, honest evaluation of black-box prompt-injection **defenses** on 
 banking suite with deterministic environment-state checks (no LLM judge).
 
 Model: `Qwen/Qwen2.5-7B-Instruct` (fp16). Harness: `agentdojo==0.1.30` + modern vLLM.
-See [`CLAUDE.md`](CLAUDE.md) for the full research plan and [`RESULTS.md`](RESULTS.md) for
-findings and caveats.
+See [`RESULTS.md`](RESULTS.md) for findings and caveats, and [`PAPER.md`](PAPER.md) for the
+write-up. Parser fix is guarded by `tests/test_qwen_parser.py` (`python -m pytest tests/`).
 
 ## Current headline (clean 2×2, banking · important_instructions · K=4)
 
