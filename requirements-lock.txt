@@ -1,0 +1,28 @@
+# Known-good, empirically-validated stacks. Two paths depending on the GPU host's DRIVER.
+# run_sweep.py also writes the resolved versions into results/<tag>.config.json for every run.
+
+# ---------------------------------------------------------------------------
+# PATH A — host driver CUDA 13.x (e.g. RunPod A100-80GB, Colab 2026 images).
+# Used for: 7B/14B (Colab) and the 32B attacker run (RunPod A100). Install order matters:
+#   pip install -U vllm            # pulls torch 2.13.0+cu130
+#   pip install "agentdojo==0.1.30" openai   # SEPARATELY (combined -> pip resolution-too-deep)
+#   pip uninstall -y torchaudio    # base images ship a mismatched torchaudio -> import RuntimeError
+# Resolved:
+vllm==0.27.1
+torch==2.13.0
+transformers==5.15.1
+numpy==2.0.2
+agentdojo==0.1.30
+openai>=1.0
+
+# ---------------------------------------------------------------------------
+# PATH B — host driver CUDA 12.8 (some RunPod A40s). The cu130 wheels above WON'T run
+# ("NVIDIA driver too old"). Build an isolated venv with a cu128 stack instead:
+#   python -m venv v && source v/bin/activate
+#   pip install vllm==0.11.0            # pulls torch 2.8.0+cu128
+#   pip install "agentdojo==0.1.30" openai
+#   pip install "transformers<5"        # vllm 0.11 needs transformers 4.x (5.x removed an attr)
+#   pip install hf_transfer             # base images set HF_HUB_ENABLE_HF_TRANSFER=1
+# Resolved: vllm==0.11.0, torch==2.8.0(+cu128), transformers==4.57.x, agentdojo==0.1.30
+#
+# Prefer PATH A on a CUDA-13 host — it needs no venv or version juggling.

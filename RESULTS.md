@@ -21,12 +21,18 @@ Banking suite · `important_instructions` attack · Qwen2.5-7B-Instruct (bf16) �
 Targeted ASR = fraction of the 144 attacked runs (16 user × 9 injection tasks) where
 the injection succeeded (`security == True`). Utility = task still completed under attack.
 
-| defense | ASR | utility |
+> **⚠️ DEPRECATED — pre-parser-fix (contaminated) measurements. Do not cite or compare.**
+> These numbers were produced before the Qwen tool-call parser fix, which roughly doubled
+> measured ASR once the undefended agent actually executed. The clean static baselines are
+> in the Phase-2 section (none **18.75%**, classifier **13.89%**); spotlighting / repeat
+> were not re-run clean. Kept here only to document the contamination story.
+
+| defense | ASR (contaminated) | utility |
 |---|---|---|
-| transformers_pi_detector (classifier) | **4.86%** | 25.00% |
+| transformers_pi_detector (classifier) | 4.86% | 25.00% |
 | none (baseline) | 10.42% | 34.03% |
 | repeat_user_prompt (sandwiching) | 12.28% | 33.33% |
-| spotlighting_with_delimiting | **23.61%** | 44.44% |
+| spotlighting_with_delimiting | 23.61% | 44.44% |
 
 `tool_filter` excluded — agentdojo restricts it to OpenAI models (cannot run local).
 
@@ -56,7 +62,7 @@ the injection succeeded (`security == True`). Utility = task still completed und
 Notebooks (Colab): `phase0_agentdojo_baseline.ipynb`, `phase1_defense_matrix.ipynb`.
 Required shim: `patch_local.py` (content-part schema + int-digit cap), loaded in the
 benchmark subprocess via `-ml patch_local`. Stack: modern vLLM + `agentdojo==0.1.30`,
-`Qwen/Qwen2.5-7B-Instruct`, deterministic env-checks. See `CLAUDE.md` for the plan.
+`Qwen/Qwen2.5-7B-Instruct`, deterministic env-checks. Headless runner: `run_sweep.py`.
 
 ## Phase 2 — adaptive attacker (L4, in-process)
 
@@ -143,6 +149,20 @@ GCG; larger targets; other defenses/suites) would map where the threshold sits a
 ratio plateaus below 1.0 or reaches full neutralization.
 
 **Caveats:**
+- **Cross-condition few-shot transfer (affects these numbers).** Each adaptive run above was
+  launched as `--defenses none transformers_pi_detector` in one invocation, and the original
+  `run_sweep.py` kept a single winning-payload pool for the whole invocation — so every
+  `transformers` run's attacker was few-shot-seeded with payloads discovered against `none`.
+  This likely *inflates* the classifier ASR, meaning the erosion ratios are if anything an
+  *over*-statement of erosion. It is consistent across all four attacker scales, so the trend
+  is internally valid, but the absolute classifier numbers carry this caveat. The runner now
+  **isolates winner pools per defense by default** (`--share-winners` to opt into transfer
+  explicitly); a clean within-condition rerun is the way to remove this caveat.
+- **Error accounting.** The committed transcripts show no signature of silent infrastructure
+  errors (every failed pair has a real attacker payload; crack rates are non-degenerate;
+  144/144 completed) — so these numbers are not error-contaminated. But the original runner
+  scored an exception as `security=False` (a defensive "win"); the runner now records
+  `status=error` and **excludes** such pairs from ASR instead.
 - Attacker scale is the binding variable to test next (a larger/separate attacker model, or
   white-box GCG on the smallest target).
 - Not bit-deterministic (vLLM batching at temp 0) — figures need bootstrap CI / repeats.

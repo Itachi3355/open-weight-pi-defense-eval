@@ -131,6 +131,14 @@ This reframes defense evaluation from a single ASR to an **erosion curve over at
 - vLLM is not bit-deterministic at temperature 0; point estimates need bootstrap CI / repeats
   (the non-monotone `none` column, 14.58 → 19.44 at 32B, underlines this).
 - Black-box LLM attacker only; no GCG/white-box comparison yet.
+- **Cross-condition few-shot transfer.** The reported runs kept one winning-payload pool per
+  invocation, so each `transformers` attacker was seeded with payloads that cracked `none` —
+  likely inflating classifier ASR (i.e. the erosion ratio may be over-stated). Consistent
+  across all scales, so the trend holds; a within-condition rerun (winner pools now isolated
+  by default) would give clean absolute classifier numbers.
+- **Error handling.** The committed transcripts show no signature of silent infrastructure
+  errors, but the original runner scored exceptions as `security=False`; the runner now
+  excludes errored pairs (`status=error`) from ASR rather than counting them as defensive wins.
 
 ## 7. What a full submission still needs
 
