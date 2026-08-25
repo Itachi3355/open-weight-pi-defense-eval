@@ -1,10 +1,38 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 440" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" role="img" aria-labelledby="t d">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 440" role="img" aria-labelledby="t d">
   <title id="t">Classifier protection ratio versus attacker scale</title>
   <desc id="d">Defended-over-undefended ASR ratio. Shared attacker memory: 0.52 at 7B weak, 0.70 at 7B strong, 0.86 at 14B, 0.89 at 32B. The de-contaminated isolated-memory 32B point is 0.75, below the shared 0.89. A dashed reference at 1.0 marks a fully erased defense.</desc>
-  <rect x="0" y="0" width="720" height="440" fill="#ffffff"/>
+  <style>
+    text{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .grid{stroke:#e3e6ea}
+    .axis{stroke:#c3c2b7}
+    .faint{fill:#8a929d}
+    .muted{fill:#5b6470}
+    .ink{fill:#151a21}
+    .blue{stroke:#2a78d6}
+    .bluef{fill:#2a78d6}
+    .bluel{fill:#185fa5}
+    .coral{stroke:#d8541f}
+    .coralf{fill:#d8541f}
+    .corall{fill:#8f3413}
+    .erased{stroke:#8a929d}
+    @media (prefers-color-scheme:dark){
+      .grid{stroke:#262b33}
+      .axis{stroke:#3a4049}
+      .faint{fill:#6b7480}
+      .muted{fill:#9aa3af}
+      .ink{fill:#e7eaef}
+      .blue{stroke:#4f97ea}
+      .bluef{fill:#4f97ea}
+      .bluel{fill:#85b7eb}
+      .coral{stroke:#f0803f}
+      .coralf{fill:#f0803f}
+      .corall{fill:#f4a476}
+      .erased{stroke:#6b7480}
+    }
+  </style>
 
-  <!-- y gridlines + ticks (0.4..1.0) -->
-  <g stroke="#e1e0d9" stroke-width="1">
+  <g class="grid" stroke-width="1">
     <line x1="70" y1="350" x2="690" y2="350"/>
     <line x1="70" y1="303.8" x2="690" y2="303.8"/>
     <line x1="70" y1="257.7" x2="690" y2="257.7"/>
@@ -12,7 +40,7 @@
     <line x1="70" y1="165.4" x2="690" y2="165.4"/>
     <line x1="70" y1="119.2" x2="690" y2="119.2"/>
   </g>
-  <g fill="#52514e" font-size="12" text-anchor="end">
+  <g class="faint mono" font-size="12" text-anchor="end">
     <text x="60" y="354">0.40</text>
     <text x="60" y="307.8">0.50</text>
     <text x="60" y="261.7">0.60</text>
@@ -21,59 +49,52 @@
     <text x="60" y="123.2">0.90</text>
     <text x="60" y="77.1">1.00</text>
   </g>
-  <!-- axes -->
-  <line x1="70" y1="50" x2="70" y2="350" stroke="#c3c2b7" stroke-width="1.5"/>
-  <line x1="70" y1="350" x2="690" y2="350" stroke="#c3c2b7" stroke-width="1.5"/>
-  <text x="20" y="200" fill="#52514e" font-size="12" text-anchor="middle" transform="rotate(-90 20 200)">defended / undefended ASR</text>
+  <line class="axis" x1="70" y1="50" x2="70" y2="350" stroke-width="1.5"/>
+  <line class="axis" x1="70" y1="350" x2="690" y2="350" stroke-width="1.5"/>
+  <text class="muted" x="20" y="200" font-size="12" text-anchor="middle" transform="rotate(-90 20 200)">defended / undefended ASR</text>
 
-  <!-- 1.0 = defense erased reference -->
-  <line x1="70" y1="73.1" x2="690" y2="73.1" stroke="#898781" stroke-width="1.5" stroke-dasharray="6 5"/>
-  <text x="686" y="66" fill="#898781" font-size="11.5" text-anchor="end">1.0 = defense erased</text>
+  <line class="erased" x1="70" y1="73.1" x2="690" y2="73.1" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text class="faint" x="686" y="66" font-size="11.5" text-anchor="end">1.0 = defense erased</text>
 
-  <!-- shared-memory curve: (110,294.6)(290,211.5)(470,137.7)(650,123.8) -->
-  <polyline points="110,294.6 290,211.5 470,137.7 650,123.8" fill="none" stroke="#2a78d6" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-  <g fill="#2a78d6">
+  <polyline class="blue" points="110,294.6 290,211.5 470,137.7 650,123.8" fill="none" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <g class="bluef">
     <circle cx="110" cy="294.6" r="5"/>
     <circle cx="290" cy="211.5" r="5"/>
     <circle cx="470" cy="137.7" r="5"/>
     <circle cx="650" cy="123.8" r="5"/>
   </g>
-  <g fill="#185fa5" font-size="12" text-anchor="middle">
+  <g class="bluel mono" font-size="12" text-anchor="middle">
     <text x="110" y="284">0.52</text>
     <text x="290" y="201">0.70</text>
     <text x="470" y="127">0.86</text>
     <text x="628" y="118">0.89</text>
   </g>
 
-  <!-- de-contamination pull-down 0.89 -> 0.75 at 32B -->
-  <line x1="650" y1="130" x2="650" y2="181" stroke="#eb6834" stroke-width="1.5" stroke-dasharray="3 3"/>
-  <!-- isolated 32B point at (650,188.5), diamond -->
-  <path d="M650,180 L659,188.5 L650,197 L641,188.5 Z" fill="#eb6834"/>
-  <text x="668" y="192" fill="#993c1d" font-size="12" text-anchor="start">0.75</text>
+  <line class="coral" x1="650" y1="130" x2="650" y2="181" stroke-width="1.5" stroke-dasharray="3 3"/>
+  <path class="coralf" d="M650,180 L659,188.5 L650,197 L641,188.5 Z"/>
+  <text class="corall mono" x="668" y="192" font-size="12.5" text-anchor="start">0.75</text>
 
-  <!-- x labels -->
-  <g fill="#0b0b0b" font-size="12.5" text-anchor="middle">
+  <g class="ink" font-size="12.5" text-anchor="middle">
     <text x="110" y="372">7B weak</text>
     <text x="290" y="372">7B strong</text>
     <text x="470" y="372">14B</text>
     <text x="650" y="372">32B</text>
   </g>
-  <g fill="#898781" font-size="11" text-anchor="middle">
+  <g class="faint mono" font-size="11" text-anchor="middle">
     <text x="110" y="387">K=4</text>
     <text x="290" y="387">K=8</text>
     <text x="470" y="387">K=8</text>
     <text x="650" y="387">K=8</text>
   </g>
-  <text x="380" y="410" fill="#52514e" font-size="12.5" text-anchor="middle">attacker scale (target fixed at Qwen2.5-7B)</text>
+  <text class="muted" x="380" y="410" font-size="12.5" text-anchor="middle">attacker scale (target fixed at Qwen2.5-7B)</text>
 
-  <!-- legend -->
   <g font-size="12">
-    <line x1="90" y1="428" x2="116" y2="428" stroke="#2a78d6" stroke-width="2.5"/>
-    <circle cx="103" cy="428" r="4" fill="#2a78d6"/>
-    <text x="122" y="432" fill="#52514e">shared attacker memory</text>
-    <path d="M300,428 l7,-7 l7,7 l-7,7 Z" fill="#eb6834"/>
-    <text x="320" y="432" fill="#52514e">isolated (de-contaminated)</text>
-    <line x1="520" y1="428" x2="546" y2="428" stroke="#898781" stroke-width="1.5" stroke-dasharray="6 5"/>
-    <text x="552" y="432" fill="#52514e">erased</text>
+    <line class="blue" x1="90" y1="428" x2="116" y2="428" stroke-width="2.5"/>
+    <circle class="bluef" cx="103" cy="428" r="4"/>
+    <text class="muted" x="122" y="432">shared attacker memory</text>
+    <path class="coralf" d="M300,428 l7,-7 l7,7 l-7,7 Z"/>
+    <text class="muted" x="320" y="432">isolated (de-contaminated)</text>
+    <line class="erased" x1="520" y1="428" x2="546" y2="428" stroke-width="1.5" stroke-dasharray="6 5"/>
+    <text class="muted" x="552" y="432">erased</text>
   </g>
 </svg>
