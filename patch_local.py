@@ -44,47 +44,13 @@ def _ccr(client, model, messages, __real=_REAL_CCR, **kw):
 _L.chat_completion_request = _ccr
 
 # --- 3. robust tool-call parser (brace-match; tolerate Qwen's bare `<function>` close) ---
-_OPEN_RE = re.compile(r"<function\s*=\s*([^>]+?)\s*>")
-
-def _extract_json_object(s, start):
-    i = s.find("{", start)
-    if i == -1:
-        return None
-    depth = 0; in_str = False; esc = False
-    for j in range(i, len(s)):
-        c = s[j]
-        if in_str:
-            if esc: esc = False
-            elif c == "\\": esc = True
-            elif c == '"': in_str = False
-        else:
-            if c == '"': in_str = True
-            elif c == "{": depth += 1
-            elif c == "}":
-                depth -= 1
-                if depth == 0:
-                    return s[i:j + 1]
-    return None
+# Single source of truth: the tested reference impl in qwen_parser.py. This runs in the
+# benchmark subprocess with PYTHONPATH=$PWD, so qwen_parser is importable. (Guarded by
+# tests/test_qwen_parser.py — no separate hand-maintained copy to drift.)
+from qwen_parser import extract_tool_calls
 
 def _robust_parse(completion):
-    default = ChatAssistantMessage(
-        role="assistant", content=[text_content_block_from_string(completion.strip())], tool_calls=[]
-    )
-    calls = []
-    for m in _OPEN_RE.finditer(completion):
-        name = m.group(1).strip()
-        obj = _extract_json_object(completion, m.end())
-        args = {}
-        if obj is not None:
-            try:
-                parsed = json.loads(obj)
-                if isinstance(parsed, dict):
-                    args = parsed
-            except Exception:
-                args = {}
-        calls.append(FunctionCall(function=name, args=args))
-    if not calls:
-        return default
+    calls = [FunctionCall(function=c["name"], args=c["args"]) for c in extract_tool_calls(completion)]
     return ChatAssistantMessage(
         role="assistant", content=[text_content_block_from_string(completion.strip())], tool_calls=calls
     )

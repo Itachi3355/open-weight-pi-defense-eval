@@ -54,6 +54,12 @@ def test_no_tool_call():
     assert extract_tool_calls("I need more information before I can help.") == []
 
 
+def test_adjacent_openers_no_cross_assignment():
+    # a no-arg call immediately followed by an arg call: 'a' must NOT steal 'b''s JSON object
+    calls = extract_tool_calls('<function=a><function=b>{"y": 2}<function>')
+    assert calls == [{"name": "a", "args": {}}, {"name": "b", "args": {"y": 2}}]
+
+
 def test_prose_before_call():
     calls = extract_tool_calls('Let me check that.\n<function=get_balance>{}<function>')
     assert calls == [{"name": "get_balance", "args": {}}]

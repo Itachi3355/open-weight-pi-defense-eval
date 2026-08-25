@@ -238,10 +238,14 @@ def run(a):
                     tag += "_att-" + att_model.split("/")[-1].replace(".", "_")
             ckpt = os.path.join(a.outdir, f"{tag}.jsonl")
 
-            # config + environment snapshot for reproducibility (one per tag)
-            with open(os.path.join(a.outdir, f"{tag}.config.json"), "w") as cf:
-                json.dump({"args": vars(a), "target_model": served, "attacker_model": att_model,
-                           "versions": _versions(), "tag": tag}, cf, indent=2)
+            # config + environment snapshot for reproducibility. Write ONCE (skip if it exists)
+            # so a resume under a different env can't overwrite the snapshot that describes the
+            # already-checkpointed rows.
+            cfg_path = os.path.join(a.outdir, f"{tag}.config.json")
+            if not os.path.exists(cfg_path):
+                with open(cfg_path, "w") as cf:
+                    json.dump({"args": vars(a), "target_model": served, "attacker_model": att_model,
+                               "versions": _versions(), "tag": tag}, cf, indent=2)
 
             # winners: isolated per-tag unless --share-winners
             if a.share_winners:
@@ -249,7 +253,12 @@ def run(a):
                 winners_path = os.path.join(a.outdir, "winning_payloads.txt")
             else:
                 winners_path = os.path.join(a.outdir, f"{tag}.winners.txt")
-                winners = [l.rstrip("\n") for l in open(winners_path)] if os.path.exists(winners_path) else []
+                # legacy fallback: a run started before per-tag isolation wrote the shared pool;
+                # seed from it if the per-tag file doesn't exist yet, so a cross-version resume
+                # doesn't silently drop accumulated transfer.
+                legacy_path = os.path.join(a.outdir, "winning_payloads.txt")
+                src = winners_path if os.path.exists(winners_path) else legacy_path
+                winners = [l.rstrip("\n") for l in open(src)] if os.path.exists(src) else []
 
             done = load_done(ckpt)
             pairs = [(ut, it) for ut in user_tasks for it in injection_tasks]
@@ -260,7 +269,6 @@ def run(a):
             t0 = time.time()
             with open(ckpt, "a") as f:
                 for i, (ut, it) in enumerate(todo):
-                    keys = list(key_attack.attack(ut, it).keys())
                     if a.mode == "static":
                         inj = key_attack.attack(ut, it)  # fixed template payload, one shot
                         try:
@@ -272,16 +280,19 @@ def run(a):
                             rec = {"ut": ut.ID, "it": it.ID, "status": "error",
                                    "utility": None, "security": None, "error": repr(e)[:200]}
                     else:  # adaptive
+                        keys = list(key_attack.attack(ut, it).keys())  # only adaptive needs the placeholder keys
                         cracked, rounds, history, win = False, 0, [], ""
                         n_err, got_valid = 0, False
                         for k in range(a.K):
                             rounds = k + 1
-                            payload = propose(it.GOAL, history, winners)
                             try:
+                                # attacker call inside the try too: a flaky attacker endpoint is an
+                                # errored round, not a crashed sweep (and never a defensive win).
+                                payload = propose(it.GOAL, history, winners)
                                 u, s = suite.run_task_with_pipeline(pipeline, ut, it, {kk: payload for kk in keys})
                             except Exception:
                                 n_err += 1
-                                continue  # errored rollout: not a legit "failed attempt", don't append
+                                continue  # attacker- or target-side error: not a legit "failed attempt"
                             got_valid = True
                             if s:
                                 cracked = True; win = payload; break

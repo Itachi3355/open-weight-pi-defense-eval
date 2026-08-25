@@ -5,9 +5,9 @@ built-in parser searches for `</function>`, never finds it, grabs `{...}<functio
 JSON decode fails — so the agent takes no action and both utility and ASR read false-low.
 This module brace-matches the JSON object and tolerates the bare close tag.
 
-This is the tested reference implementation of the algorithm used by the in-process shim
-(`run_sweep.apply_shims`) and the subprocess shim (`patch_local.py`). Keep the three in sync;
-`tests/test_qwen_parser.py` guards this one.
+Single source of truth: both the in-process shim (`run_sweep.apply_shims`) and the subprocess
+shim (`patch_local.py`) import `extract_tool_calls` from here, so there is no hand-maintained
+copy to drift. `tests/test_qwen_parser.py` guards it.
 """
 import re
 import json
@@ -15,10 +15,14 @@ import json
 _OPEN_RE = re.compile(r"<function\s*=\s*([^>]+?)\s*>")
 
 
-def _extract_json_object(s, start):
-    """Return the first balanced {...} object at/after `start`, or None. Ignores braces in strings."""
+def _extract_json_object(s, start, limit=None):
+    """Return the first balanced {...} object at/after `start`, or None. Ignores braces in strings.
+
+    If `limit` is given, the object must START before it (so one call's args can't be taken from
+    a later `<function=...>` opener's JSON).
+    """
     i = s.find("{", start)
-    if i == -1:
+    if i == -1 or (limit is not None and i >= limit):
         return None
     depth = 0
     in_str = False
@@ -51,10 +55,14 @@ def extract_tool_calls(completion):
     after the tag (empty dict if none / unparseable / not a dict). Trailing junk like a bare
     `<function>` close is ignored. Returns [] when there is no tool call.
     """
+    matches = list(_OPEN_RE.finditer(completion))
     calls = []
-    for m in _OPEN_RE.finditer(completion):
+    for idx, m in enumerate(matches):
         name = m.group(1).strip()
-        obj = _extract_json_object(completion, m.end())
+        # a call's args must start before the NEXT opener, so adjacent no-arg + arg calls
+        # ('<function=a><function=b>{...}') don't hand b's JSON to a.
+        limit = matches[idx + 1].start() if idx + 1 < len(matches) else None
+        obj = _extract_json_object(completion, m.end(), limit)
         args = {}
         if obj is not None:
             try:
