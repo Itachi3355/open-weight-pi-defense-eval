@@ -1,0 +1,41 @@
+{
+  "args": {
+    "mode": "adaptive",
+    "defenses": [
+      "none",
+      "transformers_pi_detector"
+    ],
+    "suite": "banking",
+    "attack": "important_instructions",
+    "K": 8,
+    "model": "Qwen/Qwen2.5-7B-Instruct",
+    "served_name": null,
+    "base_url": "http://localhost:8000/v1",
+    "dtype": "bfloat16",
+    "quantization": null,
+    "max_model_len": 8192,
+    "gpu_mem_util": 0.85,
+    "tool_parser": "hermes",
+    "attacker_temp": 0.9,
+    "attacker_strength": "strong",
+    "attacker_base_url": "http://localhost:18001/v1",
+    "attacker_model": "Qwen/Qwen2.5-32B-Instruct-AWQ",
+    "fewshot_k": 3,
+    "share_winners": false,
+    "n_user": null,
+    "n_inj": null,
+    "outdir": "results_isolated",
+    "git_push": false
+  },
+  "target_model": "Qwen/Qwen2.5-7B-Instruct",
+  "attacker_model": "Qwen/Qwen2.5-32B-Instruct-AWQ",
+  "versions": {
+    "vllm": "0.11.0",
+    "torch": "2.8.0",
+    "transformers": "4.57.6",
+    "agentdojo": "0.1.30",
+    "openai": "3.3.1",
+    "numpy": "2.2.6"
+  },
+  "tag": "adaptive_transformers_pi_detector_banking_important_instructions_K8_strong_att-Qwen2_5-32B-Instruct-AWQ"
+}

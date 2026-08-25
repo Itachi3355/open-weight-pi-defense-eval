@@ -90,23 +90,37 @@ none **18.75%**, classifier **13.89%**):
 
 | attacker | none | transformers_pi_detector | classifier ratio (t/n) |
 |---|---|---|---|
-| 7B weak (K=4) | 15.97% | 8.33% | 0.52 |
-| 7B strong (K=8) | 15.97% | 11.11% | 0.70 |
-| 14B strong (K=8) | 14.58% | 12.50% | 0.86 |
-| **32B strong (K=8)** | **19.44%** | **17.36%** | **0.89** |
+| 7B weak (K=4), shared winners | 15.97% | 8.33% | 0.52 |
+| 7B strong (K=8), shared winners | 15.97% | 11.11% | 0.70 |
+| 14B strong (K=8), shared winners | 14.58% | 12.50% | 0.86 |
+| 32B strong (K=8), shared winners | 19.44% | 17.36% | 0.89 |
+| **32B strong (K=8), isolated winners** | **21.68%** (31/143) | **16.31%** (23/141) | **0.75** |
+
+The **isolated-winners** 32B row is the de-contaminated anchor (each defense's attacker
+few-shot-seeded ONLY from payloads that beat that same defense; error pairs excluded from
+both denominators — none 1, classifier 3). It corrects the shared-winner rows above, which
+all inherited `none`'s winning payloads into the classifier condition (see caveat). Rerun on
+a cu128 stack (vllm 0.11, target max-model-len 8192, `--enforce-eager`); the ~2pt lift in the
+`none` cell (19.44 → 21.68) is pure serving-stack run-to-run noise, since `none` runs first and
+inherits nothing — it sets the noise band the classifier comparison clears.
 
 **Two findings, both now clean:**
 
 1. **Adaptive dominance emerges past a capability threshold.** Weak/mid attackers (≤14B)
    stay *below* the hand-crafted static template. The **32B attacker exceeds it on BOTH**
-   defenses — none 19.44% > 18.75%, and classifier 17.36% ≫ 13.89%. So the "adaptive beats
-   static" claim is confirmed, but conditionally: it requires the attacker to out-scale the
-   target. At parity it does not materialize; with an edge it does.
+   defenses — and this survives de-contamination: even with **isolated** winner pools,
+   none 21.68% > 18.75% and classifier 16.31% > 13.89%. So the "adaptive beats static" claim
+   is confirmed, but conditionally: it requires the attacker to out-scale the target. At
+   parity it does not materialize; with an edge it does.
 
-2. **The classifier's marginal protection erodes monotonically** with attacker capability:
-   ratio 0.52 → 0.70 → 0.86 → 0.89. Against the weak attacker it roughly halves ASR; against
-   the 32B it cuts ASR only ~11% (19.44 → 17.36). A defense that looks strong under
-   weak/static evaluation is nearly neutralized by a stronger adaptive attacker.
+2. **The classifier's marginal protection erodes with attacker capability — but is NOT
+   near-neutralized.** The shared-winner ratios rise 0.52 → 0.70 → 0.86 → 0.89, but that top
+   point was inflated by cross-condition payload transfer. The clean **isolated** 32B ratio is
+   **0.75**: against the strongest adaptive attacker the classifier still cuts ASR ~25%
+   (21.68 → 16.31), not the ~11% the contaminated 0.89 implied. Erosion is real and rises with
+   scale; full neutralization is not observed. (The 7B/14B rows are still shared-winner, so a
+   clean *monotone* curve would need isolated reruns at those scales too — see caveat; the
+   direction is consistent but the exact clean slope below 32B is not yet measured.)
 
 The undefended (`none`) column is roughly flat then jumps at 32B (15.97 → 15.97 → 14.58 →
 19.44): mid-scale attackers are capped by task difficulty, but a sufficiently strong attacker
@@ -136,28 +150,31 @@ absolute result — adaptive ASR exceeding static for both defenses at 32B — i
   ut11; others 0) — strong task-specification-precision signal.
 
 **What this means for the paper.** Two headline results on an open-weight, black-box,
-reproducible setup: (1) a **quantified erosion curve** — the classifier's marginal protection
-(ratio t/n) climbs 0.52 → 0.70 → 0.86 → 0.89 as the attacker scales weak-7B → strong-7B → 14B
-→ 32B, i.e. the defense is progressively neutralized by attacker capability; and (2) a
-**capability threshold for adaptive dominance** — no attacker up to 14B beats the static
-`important_instructions` template, but the 32B attacker exceeds it on *both* defenses
-(none 19.44% > 18.75%; classifier 17.36% ≫ 13.89%). Together these sharpen the "static
-robustness is an artifact of weak evaluation" thesis into something more precise: *adaptive
-attacks beat static ones once the attacker out-scales the target, and a defense's measured
-robustness is a function of the attacker you assume.* The natural next experiments (white-box
-GCG; larger targets; other defenses/suites) would map where the threshold sits and whether the
-ratio plateaus below 1.0 or reaches full neutralization.
+reproducible setup: (1) an **erosion trend** — the classifier's marginal protection (ratio t/n)
+rises with attacker scale (shared-winner: 0.52 → 0.70 → 0.86 → 0.89), and even at the
+de-contaminated 32B point the classifier retains real value (isolated ratio **0.75**, ASR cut
+~25%) — the defense is eroded but not neutralized; and (2) a **capability threshold for adaptive
+dominance** — no attacker up to 14B beats the static `important_instructions` template, but the
+32B attacker exceeds it on *both* defenses, and this survives isolation (none 21.68% > 18.75%;
+classifier 16.31% > 13.89%). Together these sharpen the "static robustness is an artifact of weak
+evaluation" thesis into something more precise: *adaptive attacks beat static ones once the
+attacker out-scales the target, and a defense's measured robustness is a function of the attacker
+you assume.* The natural next experiments (isolated 7B/14B reruns to fix the clean slope;
+white-box GCG; larger targets; other defenses/suites) would map where the threshold sits and how
+far the ratio climbs toward — but per this evidence, not reaching — full neutralization.
 
 **Caveats:**
-- **Cross-condition few-shot transfer (affects these numbers).** Each adaptive run above was
-  launched as `--defenses none transformers_pi_detector` in one invocation, and the original
-  `run_sweep.py` kept a single winning-payload pool for the whole invocation — so every
-  `transformers` run's attacker was few-shot-seeded with payloads discovered against `none`.
-  This likely *inflates* the classifier ASR, meaning the erosion ratios are if anything an
-  *over*-statement of erosion. It is consistent across all four attacker scales, so the trend
-  is internally valid, but the absolute classifier numbers carry this caveat. The runner now
-  **isolates winner pools per defense by default** (`--share-winners` to opt into transfer
-  explicitly); a clean within-condition rerun is the way to remove this caveat.
+- **Cross-condition few-shot transfer — RESOLVED at 32B, open at 7B/14B.** Each shared-winner
+  run above was launched as `--defenses none transformers_pi_detector` in one invocation, and
+  the original `run_sweep.py` kept a single winning-payload pool for the whole invocation — so
+  every `transformers` run's attacker was few-shot-seeded with payloads discovered against
+  `none`, *inflating* the classifier ASR. The runner now **isolates winner pools per defense by
+  default** (`--share-winners` to opt back into transfer). The **32B point has been rerun clean
+  with isolated pools** (`results_isolated/`): classifier ASR fell 17.36 → 16.31% and the ratio
+  0.89 → **0.75**, confirming the transfer was inflating measured erosion as predicted. The
+  7B/14B rows are still shared-winner; their absolute classifier numbers carry this caveat, and
+  a clean monotone curve would need isolated reruns at those scales too. The *direction* (rising
+  erosion with scale) is internally consistent; only the top point is de-contaminated so far.
 - **Error accounting.** The committed transcripts show no signature of silent infrastructure
   errors (every failed pair has a real attacker payload; crack rates are non-degenerate;
   144/144 completed) — so these numbers are not error-contaminated. But the original runner

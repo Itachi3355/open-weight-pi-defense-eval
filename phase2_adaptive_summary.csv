@@ -1,18 +1,24 @@
-defense,attack,suite,target_model,attacker_model,attacker_strength,K,n_pairs,ASR,clean_static_ASR
-none,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-7B-Instruct,simple,4,144,0.1597,0.1875
-transformers_pi_detector,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-7B-Instruct,simple,4,144,0.0833,0.1389
-none,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-7B-Instruct,strong,8,144,0.1597,0.1875
-transformers_pi_detector,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-7B-Instruct,strong,8,144,0.1111,0.1389
-none,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-14B-Instruct-AWQ,strong,8,144,0.1458,0.1875
-transformers_pi_detector,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-14B-Instruct-AWQ,strong,8,144,0.1250,0.1389
-none,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-32B-Instruct-AWQ,strong,8,144,0.1944,0.1875
-transformers_pi_detector,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-32B-Instruct-AWQ,strong,8,144,0.1736,0.1389
+defense,attack,suite,target_model,attacker_model,attacker_strength,K,n_pairs,ASR,clean_static_ASR,winners
+none,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-7B-Instruct,simple,4,144,0.1597,0.1875,shared
+transformers_pi_detector,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-7B-Instruct,simple,4,144,0.0833,0.1389,shared
+none,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-7B-Instruct,strong,8,144,0.1597,0.1875,shared
+transformers_pi_detector,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-7B-Instruct,strong,8,144,0.1111,0.1389,shared
+none,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-14B-Instruct-AWQ,strong,8,144,0.1458,0.1875,shared
+transformers_pi_detector,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-14B-Instruct-AWQ,strong,8,144,0.1250,0.1389,shared
+none,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-32B-Instruct-AWQ,strong,8,144,0.1944,0.1875,shared
+transformers_pi_detector,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-32B-Instruct-AWQ,strong,8,144,0.1736,0.1389,shared
+none,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-32B-Instruct-AWQ,strong,8,143,0.2168,0.1875,isolated
+transformers_pi_detector,important_instructions,banking,Qwen2.5-7B-Instruct,Qwen2.5-32B-Instruct-AWQ,strong,8,141,0.1631,0.1389,isolated
 
 # TWO HEADLINE RESULTS (all cells de-contaminated, robust tool-parser):
-# 1. Classifier marginal-protection ratio (transformers_ASR / none_ASR) erodes with attacker scale:
-#      7B weak 0.52 -> 7B strong 0.70 -> 14B 0.86 -> 32B 0.89
+# 1. Classifier marginal-protection ratio (transformers_ASR / none_ASR) rises with attacker scale.
+#    shared-winner: 7B weak 0.52 -> 7B strong 0.70 -> 14B 0.86 -> 32B 0.89.
+#    ISOLATED 32B (clean, no cross-condition transfer): ratio 0.75 -> classifier still cuts ASR ~25%,
+#    NOT near-neutralized; the 0.89 was inflated by winner transfer. 7B/14B not yet rerun isolated.
 # 2. Adaptive dominance emerges past a capability threshold: attackers <=14B stay BELOW the static
-#    template (none 18.75%, classifier 13.89%), but the 32B attacker EXCEEDS it on BOTH:
-#    none 19.44% > 18.75%; classifier 17.36% >> 13.89%. Adaptive beats static once attacker out-scales target.
-# none column: 15.97 -> 15.97 -> 14.58 -> 19.44 (flat mid, jumps at 32B).
-# Hardware: 7B/14B on Colab; 32B attacker on RunPod A100-80GB (CUDA 13, vllm 0.27.1).
+#    template (none 18.75%, classifier 13.89%), but the 32B attacker EXCEEDS it on BOTH -- and this
+#    survives isolation: none 21.68% > 18.75%; classifier 16.31% > 13.89%. Adaptive beats static
+#    once attacker out-scales target.
+# isolated n_pairs = evaluable (error pairs excluded from ASR): none 143 (1 err), classifier 141 (3 err).
+# Hardware: 7B/14B on Colab; 32B shared on RunPod A100-80GB (CUDA 13, vllm 0.27.1);
+#   32B isolated on RunPod A100-SXM-80GB (CUDA 12.8 venv, vllm 0.11.0, target max-model-len 8192).

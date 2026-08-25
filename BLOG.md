@@ -7,8 +7,9 @@ banking, deterministic checks, no LLM judge) under a static attack and an adapti
 of growing size (7B → 14B → 32B). Three things came out. (1) A boring harness bug silently
 zeroed the agent's actions and *halved* every attack-success number — fixing it flipped a
 conclusion I'd already written down. (2) **A defense doesn't have a robustness number; it has an
-erosion curve** — the ratio of defended-to-undefended attack success climbs 0.52 → 0.70 → 0.86 →
-0.89 as the attacker scales up, i.e. the classifier is progressively neutralized. (3) **Adaptive
+erosion curve** — the ratio of defended-to-undefended attack success rises as the attacker
+scales up, but the defense is eroded, not neutralized: at the cleanest measured point the 32B
+adaptive attacker still gets its ASR cut ~25% by the classifier (ratio 0.75). (3) **Adaptive
 dominance has a capability threshold**: attackers up to 14B *lose* to a hand-crafted static
 template, but a 32B attacker *beats* it on both the undefended and defended agent. "Adaptive
 beats static" is true — but only once the attacker out-scales the target.
@@ -46,27 +47,33 @@ Clean harness. Static attack bar: undefended 18.75%, classifier 13.89%. Then I r
 AutoDojo-style adaptive attacker — an LLM proposes an injection, I run one deterministic rollout,
 read success, iterate, and transfer winning payloads across tasks — at increasing attacker size.
 
-| attacker | undefended | classifier | ratio (def / undef) |
-|---|---|---|---|
-| 7B, weak | 15.97% | 8.33% | **0.52** |
-| 7B, strong + few-shot, K=8 | 15.97% | 11.11% | **0.70** |
-| 14B, strong + few-shot, K=8 | 14.58% | 12.50% | **0.86** |
-| **32B, strong + few-shot, K=8** | **19.44%** | **17.36%** | **0.89** |
+| attacker | undefended | classifier | ratio (def / undef) | attacker memory |
+|---|---|---|---|---|
+| 7B, weak | 15.97% | 8.33% | **0.52** | shared |
+| 7B, strong + few-shot, K=8 | 15.97% | 11.11% | **0.70** | shared |
+| 14B, strong + few-shot, K=8 | 14.58% | 12.50% | **0.86** | shared |
+| 32B, strong + few-shot, K=8 | 19.44% | 17.36% | **0.89** | shared |
+| **32B, strong + few-shot, K=8** | **21.68%** | **16.31%** | **0.75** | **isolated** |
 
 Static bars for comparison: undefended **18.75%**, classifier **13.89%**.
 
+That last row is the one I trust. The "shared" rows let the classifier's attacker reuse
+payloads it found against the *undefended* agent — which flatters the attacker and makes the
+defense look more neutralized than it is. When I gave each defense its own isolated attacker
+memory and reran the 32B point, the classifier's ASR dropped (17.4 → 16.3%) and the ratio fell
+0.89 → **0.75**. Same lesson, smaller: the defense erodes, it doesn't evaporate.
+
 Two reads:
 
-- **Adaptive dominance kicks in at 32B.** The 7B and 14B attackers stay *below* the static
-  template — at those scales the crafted template just wins. But the 32B attacker beats it on
-  both: undefended 19.4% > 18.8%, and classifier-defended 17.4% ≫ 13.9%. The lesson isn't
-  "adaptive always wins" or "never wins" — it's that adaptive wins *once the attacker out-scales
-  the target*. There's a threshold, and I walked right across it between 14B and 32B.
-- **The classifier is being neutralized.** Against a weak attacker it roughly halves ASR
-  (ratio 0.52). Against the 32B it cuts ASR by ~11% (0.89). The defended attack rate climbs
-  faster than the undefended one (8.3 → 17.4 vs 16.0 → 19.4), so the extra attacker capability is
-  spent increasingly on *learning to evade the defense*. That's the erosion — and it's most of
-  why the classifier's apparent value evaporates.
+- **Adaptive dominance kicks in at 32B — and it's not an artifact.** The 7B and 14B attackers
+  stay *below* the static template; at those scales the crafted template just wins. The 32B
+  attacker beats it on both, and this survives the clean isolated rerun: undefended
+  21.7% > 18.8%, classifier-defended 16.3% > 13.9%. Adaptive wins *once the attacker out-scales
+  the target*. There's a threshold, and I walked across it between 14B and 32B.
+- **The classifier is eroded, not neutralized.** Against a weak attacker it roughly halves ASR
+  (ratio 0.52). Against the strongest attacker, cleanly measured, it still cuts ASR ~25%
+  (ratio 0.75). The extra attacker capability is spent partly on *learning to evade the defense* —
+  that's the erosion — but the defense keeps real value even at the top of my range.
 
 The winning payloads are mundane and human: compliance-audit pretexts, fake "Banking Service"
 notices, format-mimicry, the target account number embedded inline. No "ignore previous
@@ -75,10 +82,11 @@ instructions." The stuff that works looks like legitimate in-band content.
 ## The reframe
 
 A defense evaluated at one attacker strength gives you one number, and that number is close to
-meaningless on its own. The same classifier is "halves attacks" or "does almost nothing"
+meaningless on its own. The same classifier "halves attacks" or "cuts them a quarter"
 depending entirely on who's attacking. The useful object isn't ASR — it's the **erosion curve**:
-defended benefit as a function of attacker capability. Mine has four points (0.52 → 0.89) and,
-more strikingly, a **threshold**: somewhere between a 14B and a 32B attacker, adaptive attacks go
+defended benefit as a function of attacker capability. Mine runs 0.52 → 0.75 (clean at the top
+point) and, more strikingly, has a **threshold**: somewhere between a 14B and a 32B attacker,
+adaptive attacks go
 from losing to a hand-crafted template to beating it. If you evaluate your defense against a
 7B attacker and ship it, you haven't measured its robustness — you've measured that particular
 matchup. Someone with a bigger attacker gets a different, worse answer.

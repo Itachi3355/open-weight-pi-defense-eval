@@ -20,12 +20,16 @@ suite with a `transformers`-based prompt-injection classifier defense, we measur
 static attack and under an adaptive LLM attacker of increasing capability (7B → 14B → 32B,
 target fixed at 7B). Two results. (i) **A capability threshold for adaptive dominance:**
 attackers up to 14B stay *below* the hand-crafted static template, but a 32B attacker exceeds
-it on both the undefended agent (19.4% vs 18.8%) and the classifier-defended one (17.4% vs
-13.9%) — adaptive beats static once the attacker out-scales the target. (ii) **Monotone defense
-erosion:** the classifier's marginal protection (defended/undefended ASR ratio) climbs
-0.52 → 0.70 → 0.86 → 0.89 with attacker scale — a defense that halves ASR against a weak
-attacker cuts it only ~11% against the 32B one. We release the harness, the compatibility
-shims, all raw per-attack transcripts, and the successful injection payloads.
+it on both the undefended agent and the classifier-defended one — and this survives
+de-contamination: with per-defense **isolated** attacker memory (no cross-condition payload
+transfer), undefended 21.7% vs 18.8% static and classifier-defended 16.3% vs 13.9% static.
+Adaptive beats static once the attacker out-scales the target. (ii) **Defense erosion, not
+neutralization:** the classifier's marginal protection (defended/undefended ASR ratio) rises
+with attacker scale, but at the clean 32B point the ratio is **0.75** — the classifier still
+cuts ASR ~25% against the strongest adaptive attacker. (An earlier shared-attacker-memory
+measurement put this ratio at 0.89; isolating the memory showed that transfer had inflated the
+apparent erosion.) We release the harness, the compatibility shims, all raw per-attack
+transcripts, and the successful injection payloads.
 
 ---
 
@@ -80,30 +84,37 @@ Static bars (one-shot `important_instructions`): **none 18.75%**, **classifier 1
 
 Adaptive ASR by attacker capability (target fixed at 7B; 144 pairs each):
 
-| attacker | none (undefended) | classifier | classifier ratio (def/undef) |
-|---|---|---|---|
-| 7B, K=4, simple | 15.97% | 8.33% | 0.52 |
-| 7B, K=8, strong+few-shot | 15.97% | 11.11% | 0.70 |
-| 14B, K=8, strong+few-shot | 14.58% | 12.50% | 0.86 |
-| **32B, K=8, strong+few-shot** | **19.44%** | **17.36%** | **0.89** |
+| attacker | none (undefended) | classifier | classifier ratio (def/undef) | attacker memory |
+|---|---|---|---|---|
+| 7B, K=4, simple | 15.97% | 8.33% | 0.52 | shared |
+| 7B, K=8, strong+few-shot | 15.97% | 11.11% | 0.70 | shared |
+| 14B, K=8, strong+few-shot | 14.58% | 12.50% | 0.86 | shared |
+| 32B, K=8, strong+few-shot | 19.44% | 17.36% | 0.89 | shared |
+| **32B, K=8, strong+few-shot** | **21.68%** | **16.31%** | **0.75** | **isolated** |
+
+The **isolated-memory** 32B row is the de-contaminated anchor: each defense's attacker is
+few-shot-seeded only from payloads that beat that same defense (error pairs excluded — none 1/144,
+classifier 3/144). The shared-memory rows above let the classifier's attacker inherit payloads
+found against the undefended agent, inflating classifier ASR and thus the measured erosion.
 
 **Two findings:**
 
 1. **A capability threshold for adaptive dominance.** Attackers up to 14B stay below both static
    bars — the hand-crafted `important_instructions` template is a strong single attack that a
    comparable-scale LLM attacker approaches but does not beat. The **32B attacker exceeds it on
-   both** defenses: undefended 19.44% > 18.75%, and classifier-defended 17.36% ≫ 13.89%. Adaptive
-   attacks beat static ones once the attacker out-scales the target; at parity they do not. This
-   locates the "adaptive dominates" claim precisely rather than assuming or denying it.
+   both** defenses, and this survives de-contamination: with isolated memory, undefended
+   21.68% > 18.75% and classifier-defended 16.31% > 13.89%. Adaptive attacks beat static ones once
+   the attacker out-scales the target; at parity they do not. This locates the "adaptive dominates"
+   claim precisely rather than assuming or denying it.
 
-2. **The classifier's marginal protection erodes monotonically with attacker capability**
-   (ratio 0.52 → 0.70 → 0.86 → 0.89). Against the weak attacker it roughly halves ASR; against the
-   32B it cuts ASR only ~11% (19.44 → 17.36). The classifier column rises faster than the
-   undefended one (8.33 → 17.36 vs 15.97 → 19.44), so the attacker's extra capability is spent
-   increasingly on **evading the defense** — which is why the ratio climbs. (The 0.86 → 0.89 step
-   is small; the ratio may plateau below 1.0 rather than reach full neutralization — a white-box
-   or larger attacker would settle it. The absolute result, adaptive > static at 32B, is
-   unambiguous.)
+2. **The classifier's marginal protection erodes with attacker capability, but is not
+   neutralized.** The shared-memory ratios rise 0.52 → 0.70 → 0.86 → 0.89, but that top point was
+   inflated by cross-condition payload transfer. At the clean isolated 32B point the ratio is
+   **0.75** — the classifier still cuts ASR ~25% (21.68 → 16.31) against the strongest adaptive
+   attacker, not the ~11% the 0.89 implied. Erosion is real and rises with scale; full
+   neutralization is not observed. (Isolated reruns at 7B/14B would fix the clean slope below 32B;
+   the direction is consistent, only the 32B point is de-contaminated here. The absolute result,
+   adaptive > static at 32B, is unambiguous.)
 
 **Qualitative.** Successful payloads (79 released) cluster on: compliance/audit pretexts,
 impersonating an internal "Banking Service" notice, mimicking the surrounding transaction
@@ -118,10 +129,13 @@ far more vulnerable than fully-specified ones.
 ## 5. Discussion
 
 The honest headline is not "defenses collapse" but "a defense's *value is conditional on the
-attacker you assume*." A classifier that halves ASR against a weak attacker provides almost no
-marginal protection against a modestly larger adaptive one, while the undefended attack rate
-barely moves — the defense, not the attack surface, is what the extra capability dismantles.
-This reframes defense evaluation from a single ASR to an **erosion curve over attacker capability**.
+attacker you assume*." A classifier that halves ASR against a weak attacker still retains only
+~25% marginal protection against a modestly larger adaptive one (ratio 0.52 → 0.75) — eroded but
+not dismantled. Two cautions cut against over-claiming: cross-condition payload transfer inflates
+apparent erosion if attacker memory is shared across defenses (it moved the 32B ratio 0.75 → 0.89),
+and the undefended attack rate is itself noisy across serving stacks (±~2pt at temp 0). This
+reframes defense evaluation from a single ASR to an **erosion curve over attacker capability** —
+measured with per-defense-isolated attackers.
 
 ## 6. Limitations
 
