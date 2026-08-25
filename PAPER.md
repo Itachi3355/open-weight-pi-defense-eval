@@ -97,6 +97,8 @@ few-shot-seeded only from payloads that beat that same defense (error pairs excl
 classifier 3/144). The shared-memory rows above let the classifier's attacker inherit payloads
 found against the undefended agent, inflating classifier ASR and thus the measured erosion.
 
+![Classifier protection ratio (defended/undefended ASR) vs attacker scale: shared-memory curve rises 0.52 → 0.89, isolated-memory 32B point sits lower at 0.75, both below the 1.0 "defense erased" line.](figures/erosion_curve.svg)
+
 **Two findings:**
 
 1. **A capability threshold for adaptive dominance.** Attackers up to 14B stay below both static

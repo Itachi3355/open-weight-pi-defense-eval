@@ -63,6 +63,8 @@ defense look more neutralized than it is. When I gave each defense its own isola
 memory and reran the 32B point, the classifier's ASR dropped (17.4 → 16.3%) and the ratio fell
 0.89 → **0.75**. Same lesson, smaller: the defense erodes, it doesn't evaporate.
 
+![Classifier protection ratio (defended/undefended ASR) vs attacker scale: the shared-memory curve climbs 0.52 → 0.89 toward the dashed 1.0 "erased" line, but the de-contaminated isolated 32B point sits lower at 0.75.](figures/erosion_curve.svg)
+
 Two reads:
 
 - **Adaptive dominance kicks in at 32B — and it's not an artifact.** The 7B and 14B attackers
