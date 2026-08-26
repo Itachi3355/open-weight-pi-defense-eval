@@ -48,15 +48,45 @@ transcripts, and the successful injection payloads.
   is a *function of attacker capability*, presented as an erosion curve rather than a single
   bypass number.
 
+## 1.5 Related work and positioning
+
+Contemporaneous work by Nasr et al. (2025, arXiv:2510.09023) demonstrates that a broad set of
+LLM jailbreak and prompt-injection defenses — evaluated with strong, adaptive white- and
+black-box attacks (gradient-based, RL, search-based, and human red-teaming) — collapse from
+near-zero reported attack success rates to over 90% under adaptive pressure, across 12 defenses
+and several base models including Llama-3.3-70B on AgentDojo. Our work is best understood as a
+complementary, narrower-scope study rather than a competing sweep. Where Nasr et al. probe
+defense robustness by scaling attacker optimization sophistication (white-box gradients, RL
+policies, evolutionary search) against a range of mid-to-large open- and closed-weight models,
+we hold the attack paradigm fixed to a single black-box, LLM-proposer loop and instead scale the
+attacker model's parameter count (Qwen2.5 7B/14B/32B-Instruct) against one small,
+locally-runnable open-weight target (Qwen2.5-7B-Instruct) on the AgentDojo banking suite. This
+lets us map a specific, underexplored corner of the threat landscape — low-to-moderate attacker
+capability against a small open-weight target — where we find only *partial* erosion of one
+defense's effectiveness (AgentDojo's `TransformersBasedPIDetector`, backed by the
+`protectai/deberta-v3-base-prompt-injection-v2` DeBERTa-v3 classifier) rather than the near-total
+collapse reported elsewhere. We do not test white-box or gradient-based attacks against our
+target, and we explicitly do not claim our results bound the defense's robustness against the
+stronger adaptive attackers Nasr et al. describe; it is plausible that escalating to a white-box
+or optimization-based attacker would erode the defense further, consistent with their findings.
+Our principal independent contribution is methodological rather than adversarial: we identify a
+tool-call-parsing artifact in our evaluation harness that, when corrected, halves the measured
+attack success rate and reverses an earlier conclusion about defense effectiveness —
+underscoring that harness-level contamination, not just weak attack strength, can produce
+misleadingly optimistic robustness claims in open-weight agentic evaluations.
+
 ## 2. Setup
 
 - **Harness:** AgentDojo (Debenedetti et al., NeurIPS 2024 D&B), banking suite, 16 user tasks ×
   9 injection tasks = 144 attacked pairs. Success = deterministic environment-state check
   (`security` = injection goal achieved); utility = user task still completed. No LLM judge.
 - **Target model:** Qwen2.5-7B-Instruct, served with vLLM (bf16), temperature 0.
-- **Defense evaluated:** `transformers_pi_detector` (a fine-tuned PI classifier that gates
-  tool outputs). Static matrix also includes `spotlighting_with_delimiting` and
-  `repeat_user_prompt`; `tool_filter` is OpenAI-only and excluded for local models.
+- **Defense evaluated:** `transformers_pi_detector` — AgentDojo's built-in
+  `TransformersBasedPIDetector`, which classifies tool outputs with the
+  `protectai/deberta-v3-base-prompt-injection-v2` DeBERTa-v3 model (defaults `threshold=0.5`,
+  `safe_label="SAFE"`) and blocks messages flagged as injections. The static matrix also
+  includes `spotlighting_with_delimiting` and `repeat_user_prompt`; `tool_filter` is
+  OpenAI-only and excluded for local models.
 - **Attacks:** static = AgentDojo `important_instructions` (a strong hand-crafted template).
   Adaptive = an AutoDojo-style black-box loop: an attacker LLM proposes an injection payload,
   we run one deterministic rollout, read `security`, and iterate up to K rounds, transferring
@@ -174,5 +204,6 @@ payloads are in the repository. See `README.md` to reproduce on a single GPU in 
 ## Key references
 
 Greshake et al. 2023 (indirect PI); AgentDojo (Debenedetti et al. 2024); AutoDojo 2026;
-"The Attacker Moves Second" (Nasr, Carlini et al. 2025); Spotlighting (Hines et al. 2024);
+"The Attacker Moves Second" (Nasr, Carlini et al. 2025, arXiv:2510.09023 — preprint, under review);
+Spotlighting (Hines et al. 2024);
 StruQ/SecAlign/Meta-SecAlign; OWASP LLM Top 10. *(Verify headline numbers against primaries.)*

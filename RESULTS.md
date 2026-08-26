@@ -186,11 +186,18 @@ far the ratio climbs toward — but per this evidence, not reaching — full neu
 - Static spotlighting/repeat_user_prompt still need clean (post-parser-fix) reruns; only
   none and transformers_pi_detector have clean static numbers so far.
 
-## Next
+## Next experiments
 
-1. **Adaptive baseline** — same run with `DEFENSE=None` (the critical missing comparison).
-2. **Stronger attacker** — better prompt / few-shot / larger attacker / higher K.
-3. **Rerun Phase 1 de-contaminated** (parser fix changes those static numbers too).
-4. Break-out by task-specification precision (fully-specified vs action-open).
-5. InjecAgent cross-check; model matrix (Llama-3.1-8B, Mistral-7B, Gemma-3-4B, Meta-SecAlign-8B);
-   temp>0 × 3-seed variance bands / bootstrap CI.
+1. **Isolated-winner reruns at 7B and 14B** — establish whether the erosion trend remains
+   monotonic under the corrected protocol. Only the 32B anchor is de-contaminated so far; the
+   most valuable comparison is `7B strong / 14B strong / 32B` all isolated (the weak 7B K=4
+   point is lower priority).
+2. **Repeated runs** — quantify serving-stack and sampling variance with repeated full sweeps
+   (the `none` 32B cell moved 19.44% → 21.68% across stacks); bootstrap CI over tasks.
+3. **Resolve the 14B → 32B transition** — intermediate attacker sizes / comparable capability
+   levels to locate where adaptive crosses static.
+4. **Broaden the evaluation** — clean static reruns for spotlighting/repeat_user_prompt;
+   additional target models and defenses; InjecAgent cross-check; task-specification-precision
+   break-out (fully-specified vs action-open).
+5. **White-box comparison** — compare the black-box adaptive LLM attacker with a gradient-based
+   (e.g. GCG) or other stronger attack regime on the smallest target.
