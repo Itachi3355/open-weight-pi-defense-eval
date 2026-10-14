@@ -9,3 +9,5 @@
 vllm
 agentdojo==0.1.30
 openai
+# Inspect AI port (inspect_task.py). Replay/export need no GPU -- pip install inspect-ai alone works.
+inspect-ai

@@ -3,3 +3,4 @@ __pycache__/
 vllm.log
 attacker.log
 results_bak/
+logs/
